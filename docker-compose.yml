@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  se-authentication-service:
+    image: apfh/se-authentication-service:latest
+    ports:
+      - "9091:9091"
+    environment:
+      - MONGO_DB_CONNECTION_URI=mongodb+srv://admin:admin@dev-se-customer-mongodb.dc5xhnf.mongodb.net/?retryWrites=true&w=majority&appName=dev-se-customer-mongodb
+      - MONGO_DB_NAME=se-customer
+      - SERVER_PORT=9091
+      - JWT_SECRET_KEY=4941fb440d5c2e16c3fd3dcf0f79e6550a12c50c179fefc5c1e39fe9977da7fb8893a531ae0b558cac77397c43406e11f96594bf12ab9b6c28fced7f5d6cb93c2b8a6ed9ba4f85b3dc17fd980f9fcef39acb82463c7a46fc357947c3757b4d603352f2ee63978eb2912c474632c57ef1d96bf49ce028dd8081ad87c3caaca02c27709d2b500cdce18abb70fd946f48e408b71f86e3014406b64ac071a011477c41a39b70970f212b8f002b0e41b2a86d62cdaad9d36da3a10654ea33a7166b958d3226c374f34e91f7411ec868d02f9f59c0ab88e145c281be27410a5b99b4f8bfc22cdade86a3c728bdb6e5e97df1358e4ab79ce3808a9a4a809ae624d7d41b
+      - JWT_EXPIRATION_TIME=3600000
+  
+  se-gateway:
+    image: apfh/se-gateway:latest
+    ports:
+      - "9090:9090"
+    environment:
+      - JWT_SECRET_KEY=4941fb440d5c2e16c3fd3dcf0f79e6550a12c50c179fefc5c1e39fe9977da7fb8893a531ae0b558cac77397c43406e11f96594bf12ab9b6c28fced7f5d6cb93c2b8a6ed9ba4f85b3dc17fd980f9fcef39acb82463c7a46fc357947c3757b4d603352f2ee63978eb2912c474632c57ef1d96bf49ce028dd8081ad87c3caaca02c27709d2b500cdce18abb70fd946f48e408b71f86e3014406b64ac071a011477c41a39b70970f212b8f002b0e41b2a86d62cdaad9d36da3a10654ea33a7166b958d3226c374f34e91f7411ec868d02f9f59c0ab88e145c281be27410a5b99b4f8bfc22cdade86a3c728bdb6e5e97df1358e4ab79ce3808a9a4a809ae624d7d41b
+      - JWT_EXPIRATION_TIME=3600000
+      - SERVER_PORT=9090
+      - GATEWAY_URI=http://se-gateway:9090
+      - FRONTEND_URI=http://se-frontend:9095
+      - CUSTOMER_SERVICE_URI=http://se-authentication-service:9091
+      - CAR_SERVICE_URI=http://se-car-service:9093
+      - BOOKING_SERVICE_URI=http://se-booking-service:9094
+  
+  se-booking-service:
+    image: apfh/se-booking-service:latest
+    ports:
+      - "9094:9094"
+    environment:
+      - BOOTSTRAP_SERVER=kafka:9092
+      - SERVER_PORT=9094
+      - MONGO_CONNECTION_URI=mongodb+srv://admin:admin@dev-se-booking-mongodb.yrskj4v.mongodb.net/?retryWrites=true&w=majority&appName=dev-se-booking-mongodb
+      - MONGO_DB=se-booking
+      - JWT_SECRET_KEY=4941fb440d5c2e16c3fd3dcf0f79e6550a12c50c179fefc5c1e39fe9977da7fb8893a531ae0b558cac77397c43406e11f96594bf12ab9b6c28fced7f5d6cb93c2b8a6ed9ba4f85b3dc17fd980f9fcef39acb82463c7a46fc357947c3757b4d603352f2ee63978eb2912c474632c57ef1d96bf49ce028dd8081ad87c3caaca02c27709d2b500cdce18abb70fd946f48e408b71f86e3014406b64ac071a011477c41a39b70970f212b8f002b0e41b2a86d62cdaad9d36da3a10654ea33a7166b958d3226c374f34e91f7411ec868d02f9f59c0ab88e145c281be27410a5b99b4f8bfc22cdade86a3c728bdb6e5e97df1358e4ab79ce3808a9a4a809ae624d7d41b
+  
+  se-car-service:
+    image: apfh/se-car-service:latest
+    ports:
+      - "9093:9093"
+    environment:
+      - BOOTSTRAP_SERVER=kafka:9092
+      - SERVER_PORT=9093
+      - MONGO_CONNECTION_URI=mongodb+srv://admin:admin@dev-se-cars-mongodb.on7gfs4.mongodb.net/?retryWrites=true&w=majority&appName=dev-se-cars-mongodb
+      - MONGO_DB=se-cars
+  
+  se-frontend:
+    image: apfh/se-frontend:latest
+    ports:
+      - "9095:9095"
+      - "80:80"
+  
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+    command: 
+      - bash
+      - -c
+      - |
+        # Start Kafka in the background
+        /etc/confluent/docker/run &
+
+        # Wait for Kafka to start
+        sleep 10
+
+        # Create pre-defined topic
+        kafka-topics --create --topic booking-update --bootstrap-server kafka:9092
+        # Keep the container running
+        tail -f /dev/null
